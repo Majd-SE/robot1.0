@@ -1,0 +1,202 @@
+<button class="robot-mobile-menu" id="robotMobileMenu" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="robotSidebar"><span id="robotHamburgerIcon" aria-hidden="true">☰</span></button>
+<div class="robot-menu-overlay" id="robotMenuOverlay" aria-hidden="true"></div>
+<aside class="robot-sidebar" id="robotSidebar" aria-label="Main navigation">
+  <a class="robot-logo" href="index.html"><span class="robot-logo-title">ROBOT<span>.</span></span><span class="robot-logo-subtitle">ESP32 Control Center</span></a>
+  <nav class="robot-nav" aria-label="Main">
+    <a href="index.html" data-page="index.html"><span class="robot-nav-icon">⌂</span>Dashboard</a>
+    <a href="pomodoro.html" data-page="pomodoro.html"><span class="robot-nav-icon">◷</span>Pomodoro</a>
+    <a href="messages.html" data-page="messages.html"><span class="robot-nav-icon">✉</span>Messages</a>
+    <a href="reminders.html" data-page="reminders.html"><span class="robot-nav-icon">♧</span>Reminders</a>
+    <a href="status.html" data-page="status.html"><span class="robot-nav-icon">⌁</span>Status</a>
+  </nav>
+  <div class="robot-sidebar-bottom"><span class="robot-online"><i class="robot-online-dot"></i>Robot Online</span><span class="robot-device">ESP32-S3</span></div>
+</aside>
+<script>
+(() => {
+  const BROKER_URL = 'wss://io.adafruit.com:443/mqtt';
+  let mqttLibraryPromise;
+  let mqttClient;
+  let mqttClientPromise;
+  let latestRobotStatus = null;
+  let latestStatusAt = 0;
+  let statusWaiters = [];
+
+  function loadMqttLibrary() {
+    if (window.mqtt) return Promise.resolve();
+    if (mqttLibraryPromise) return mqttLibraryPromise;
+    mqttLibraryPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/mqtt/dist/mqtt.min.js';
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('Could not load MQTT client.'));
+      document.head.append(script);
+    });
+    return mqttLibraryPromise;
+  }
+
+  function cloudSettings() {
+    return {
+      username: localStorage.getItem('aioUsername') || '',
+      key: localStorage.getItem('aioKey') || ''
+    };
+  }
+
+  async function connectCloud() {
+    const { username, key } = cloudSettings();
+    if (!username || !key) throw new Error('Enter your Adafruit IO username and key on the Status page.');
+    if (mqttClient && mqttClient.connected && mqttClient.username === username) return mqttClient;
+    if (mqttClientPromise) return mqttClientPromise;
+
+    mqttClientPromise = (async () => {
+      await loadMqttLibrary();
+      return new Promise((resolve, reject) => {
+        const client = window.mqtt.connect(BROKER_URL, {
+          username,
+          password: key,
+          clientId: `robot-web-${Math.random().toString(16).slice(2)}`,
+          clean: true,
+          connectTimeout: 12000,
+          reconnectPeriod: 2000,
+          keepalive: 30
+        });
+        let settled = false;
+        const timeout = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          client.end(true);
+          reject(new Error('Cloud connection timed out. Check the Adafruit IO username and key.'));
+        }, 15000);
+
+        client.on('connect', () => {
+          client.username = username;
+          client.subscribe(`${username}/feeds/robot-status/json`, error => {
+            if (error) {
+              if (!settled) {
+                settled = true;
+                clearTimeout(timeout);
+                mqttClientPromise = null;
+                reject(new Error(`Could not subscribe to robot status: ${error.message}`));
+              }
+              return;
+            }
+            mqttClient = client;
+            mqttClientPromise = null;
+            if (!settled) {
+              settled = true;
+              clearTimeout(timeout);
+              resolve(client);
+            }
+          });
+        });
+        client.on('message', (topic, bytes) => {
+          if (topic !== `${username}/feeds/robot-status/json`) return;
+          try {
+            const envelope = JSON.parse(bytes.toString());
+            const rawState = envelope.value ?? envelope.data?.value ?? envelope.last_value;
+            const state = typeof rawState === 'string' ? JSON.parse(rawState) : rawState;
+            if (!state || typeof state !== 'object') return;
+            latestRobotStatus = state;
+            latestStatusAt = Date.now();
+            statusWaiters.splice(0).forEach(waiter => {
+              clearTimeout(waiter.timeout);
+              waiter.resolve(state);
+            });
+          } catch { /* Ignore malformed status feed updates. */ }
+        });
+        client.on('close', () => { if (mqttClient === client) mqttClient = null; });
+        client.on('error', error => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timeout);
+            mqttClientPromise = null;
+            reject(new Error(`Cloud connection failed: ${error.message}`));
+          }
+        });
+      });
+    })();
+    return mqttClientPromise;
+  }
+
+  window.robotControl = {
+    get baseUrl() { return localStorage.getItem('robotApiBase') || ''; },
+    get isConfigured() { const { username, key } = cloudSettings(); return Boolean((username && key) || this.baseUrl); },
+    setBaseUrl(value) {
+      const parsed = new URL(value);
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Enter an HTTP address.');
+      localStorage.setItem('robotApiBase', parsed.origin);
+    },
+    setCloudCredentials(username, key) {
+      if (!username.trim() || !key.trim()) throw new Error('Enter both Adafruit IO fields.');
+      localStorage.setItem('aioUsername', username.trim());
+      localStorage.setItem('aioKey', key.trim());
+      if (mqttClient) mqttClient.end(true);
+      mqttClient = null;
+      mqttClientPromise = null;
+    },
+    async request(path, payload) {
+      const { username, key } = cloudSettings();
+      if (username && key) {
+        const client = await connectCloud();
+        if (payload !== undefined) {
+          const command = JSON.stringify({ value: JSON.stringify({ path, payload }) });
+          await new Promise((resolve, reject) => client.publish(`${username}/feeds/robot-command/json`, command, error => error ? reject(error) : resolve()));
+          return { ok: true, queued: true };
+        }
+        if (path === '/api/status') {
+          if (latestRobotStatus && Date.now() - latestStatusAt < 20000) return latestRobotStatus;
+          return new Promise((resolve, reject) => {
+            const waiter = { resolve, timeout: null };
+            waiter.timeout = setTimeout(() => {
+              statusWaiters = statusWaiters.filter(item => item !== waiter);
+              reject(new Error('No status update from the robot yet. Check that the ESP32 is online.'));
+            }, 20000);
+            statusWaiters.push(waiter);
+            client.publish(`${username}/feeds/robot-status/json/get`, '', error => {
+              if (!error) return;
+              clearTimeout(waiter.timeout);
+              statusWaiters = statusWaiters.filter(item => item !== waiter);
+              reject(new Error(`Could not request robot status: ${error.message}`));
+            });
+          });
+        }
+        throw new Error('Unsupported cloud request.');
+      }
+      const base = this.baseUrl.replace(/\/$/, '');
+      if (!base) throw new Error('Enter the ESP32 address on the Status page first.');
+      const response = await fetch(`${base}${path}`, payload === undefined ? { method: 'GET' } : {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.ok === false) throw new Error(result.error || `ESP32 returned HTTP ${response.status}.`);
+      return result;
+    }
+  };
+
+  const sidebar = document.getElementById('robotSidebar');
+  const button = document.getElementById('robotMobileMenu');
+  const icon = document.getElementById('robotHamburgerIcon');
+  const overlay = document.getElementById('robotMenuOverlay');
+  if (!sidebar || !button || !overlay) return;
+  const close = () => {
+    sidebar.classList.remove('robot-open'); overlay.classList.remove('robot-open');
+    button.setAttribute('aria-expanded', 'false'); button.setAttribute('aria-label', 'Open navigation');
+    overlay.setAttribute('aria-hidden', 'true'); icon.textContent = '☰'; document.body.classList.remove('robot-menu-active');
+  };
+  const open = () => {
+    sidebar.classList.add('robot-open'); overlay.classList.add('robot-open');
+    button.setAttribute('aria-expanded', 'true'); button.setAttribute('aria-label', 'Close navigation');
+    overlay.setAttribute('aria-hidden', 'false'); icon.textContent = '✕'; document.body.classList.add('robot-menu-active');
+  };
+  button.addEventListener('click', () => sidebar.classList.contains('robot-open') ? close() : open());
+  overlay.addEventListener('click', close);
+  sidebar.querySelectorAll('a').forEach(link => link.addEventListener('click', close));
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
+  const page = location.pathname.split('/').pop() || 'index.html';
+  sidebar.querySelectorAll('[data-page]').forEach(link => {
+    const active = link.dataset.page === page;
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+  });
+  window.addEventListener('resize', () => { if (innerWidth > 900) close(); });
+})();
+</script>

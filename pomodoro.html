@@ -1,0 +1,63 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#070707"><title>Pomodoro | ROBOT.</title><link rel="stylesheet" href="style.css"></head><body><div id="robotMenu"></div><main class="page-shell"><header class="page-header"><div><p class="eyebrow">FOCUS SYSTEM</p><h1>Pomodoro</h1><p class="page-description">A quiet space to focus, one session at a time.</p></div></header>
+<div class="pomodoro-layout"><section class="glass-card timer-card"><div class="mode-switch" role="group" aria-label="Timer mode"><button class="mode-button active" data-mode="focus">Focus</button><button class="mode-button" data-mode="short">Short Break</button><button class="mode-button" data-mode="long">Long Break</button></div><div class="timer-ring"><div><p class="eyebrow" id="timerMode">Focus Session</p><div class="timer-value" id="timerDisplay" aria-live="off">25:00</div></div></div><p class="timer-status" id="timerStatus" aria-live="polite">Ready when you are</p><div class="timer-controls"><button class="primary-button" id="startButton">Start</button><button class="secondary-button" id="resetButton">Reset</button></div><div class="session-progress"><span>Session <strong id="sessionNumber">1</strong> of 4</span><div class="session-dots" aria-label="Focus session progress"><i class="active"></i><i></i><i></i><i></i></div></div></section>
+<aside class="pomodoro-side"><section class="glass-card stats-card"><p class="eyebrow">FOCUS STATS</p><div class="stat-row"><span>Focus Time</span><strong id="focusTime">0 min</strong></div><div class="stat-row"><span>Sessions</span><strong id="completedSessions">0</strong></div><div class="stat-row"><span>Current Mode</span><strong id="currentMode">Focus</strong></div><div class="stat-row"><span>Status</span><strong id="statusValue">Ready</strong></div></section><section class="glass-card settings-card"><p class="eyebrow">TIMER SETTINGS</p><label class="field-label" for="focusInput">Focus <span>(minutes)</span></label><input id="focusInput" type="number" min="1" max="120" value="25"><label class="field-label" for="shortInput">Short Break <span>(minutes)</span></label><input id="shortInput" type="number" min="1" max="60" value="5"><label class="field-label" for="longInput">Long Break <span>(minutes)</span></label><input id="longInput" type="number" min="1" max="120" value="15"><button class="secondary-button full-button" id="applyButton">Apply Changes</button><p class="form-note" id="settingsNote" aria-live="polite">Applying settings resets the current timer.</p></section></aside></div></main>
+<script>
+const durations = { focus: 25, short: 5, long: 15 };
+let mode = 'focus', remaining = durations.focus * 60, interval = null, running = false, completed = 0, elapsedFocus = 0;
+const $ = id => document.getElementById(id);
+const display = $('timerDisplay'), startButton = $('startButton');
+function sendPomodoroEvent(type, details = {}) {
+  if (!window.robotControl) return Promise.reject(new Error('Menu API is still loading.'));
+  const remainingSeconds = Math.max(0, Math.floor(remaining));
+  return window.robotControl.request('/api/timer', {
+    event: type,
+    mode,
+    remainingSeconds,
+    ...details
+  }).catch(error => {
+    $('settingsNote').textContent = error.message;
+    $('settingsNote').classList.add('error-text');
+  });
+}
+function render() {
+  display.textContent = `${String(Math.floor(remaining / 60)).padStart(2,'0')}:${String(remaining % 60).padStart(2,'0')}`;
+  $('timerMode').textContent = mode === 'focus' ? 'Focus Session' : mode === 'short' ? 'Short Break' : 'Long Break';
+  $('currentMode').textContent = mode === 'focus' ? 'Focus' : mode === 'short' ? 'Short Break' : 'Long Break';
+  $('sessionNumber').textContent = completed % 4 + 1;
+  document.querySelectorAll('.session-dots i').forEach((dot, i) => dot.classList.toggle('active', i <= completed % 4));
+  $('focusTime').textContent = `${Math.floor(elapsedFocus / 60)} min`;
+  $('completedSessions').textContent = completed;
+  const paused = !running && remaining < durations[mode] * 60;
+  $('statusValue').textContent = running ? 'Running' : paused ? 'Paused' : 'Ready';
+  $('timerStatus').textContent = running ? 'Session in progress' : paused ? 'Session paused' : 'Ready when you are';
+  startButton.textContent = running ? 'Pause' : remaining < durations[mode] * 60 ? 'Resume' : 'Start';
+  document.title = `${display.textContent} · Pomodoro | ROBOT.`;
+}
+function selectMode(next) { clearInterval(interval); interval = null; running = false; mode = next; remaining = durations[mode] * 60; document.querySelectorAll('.mode-button').forEach(button => button.classList.toggle('active', button.dataset.mode === mode)); render(); sendPomodoroEvent('reset'); }
+function finishSession() {
+  const completedMode = mode;
+  running = false; clearInterval(interval); interval = null;
+  if (completedMode === 'focus') completed++;
+  mode = completedMode === 'focus' ? (completed % 4 === 0 ? 'long' : 'short') : 'focus';
+  remaining = durations[mode] * 60;
+  document.querySelectorAll('.mode-button').forEach(button => button.classList.toggle('active', button.dataset.mode === mode));
+  sendPomodoroEvent('session-complete', { nextMode: mode, completed }); render();
+}
+startButton.addEventListener('click', () => {
+  if (running) { clearInterval(interval); interval = null; running = false; sendPomodoroEvent('pause'); render(); return; }
+  const event = startButton.textContent === 'Resume' ? 'resume' : 'start';
+  running = true; sendPomodoroEvent(event); render();
+  interval = setInterval(() => { if (mode === 'focus') elapsedFocus++; remaining--; if (remaining <= 0) finishSession(); else render(); }, 1000);
+});
+$('resetButton').addEventListener('click', () => { clearInterval(interval); interval = null; running = false; remaining = durations[mode] * 60; sendPomodoroEvent('reset'); render(); });
+document.querySelectorAll('.mode-button').forEach(button => button.addEventListener('click', () => selectMode(button.dataset.mode)));
+$('applyButton').addEventListener('click', () => {
+  const fields = [['focusInput','focus',120],['shortInput','short',60],['longInput','long',120]];
+  for (const [id,label,max] of fields) { const input = $(id), value = Number(input.value); if (!Number.isInteger(value) || value < 1 || value > max) { input.setCustomValidity(`Enter a whole number from 1 to ${max}.`); input.reportValidity(); input.addEventListener('input', () => input.setCustomValidity(''), { once: true }); return; } }
+  fields.forEach(([id,label]) => durations[label] = Number($(id).value));
+  clearInterval(interval); interval = null; running = false; remaining = durations[mode] * 60; $('settingsNote').textContent = 'Settings applied. Timer reset.'; $('settingsNote').classList.remove('error-text'); sendPomodoroEvent('reset'); render();
+});
+render();
+loadRobotMenu();
+async function loadRobotMenu() { try { const response=await fetch('menu.html'); if(!response.ok)throw Error(); const template=document.createElement('template'); template.innerHTML=await response.text(); const menuScript=template.content.querySelector('script'); if(menuScript)menuScript.remove(); $('robotMenu').replaceChildren(template.content.cloneNode(true)); if(menuScript){const script=document.createElement('script');script.textContent=menuScript.textContent;document.body.append(script);script.remove();} } catch { $('robotMenu').innerHTML='<p class="menu-error">Navigation could not load. Run this page using VS Code Live Server.</p>'; } }
+</script></body></html>
