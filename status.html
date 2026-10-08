@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#070707">
+  <title>Status | ROBOT.</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="robotMenu"></div>
+<main class="page-shell">
+  <header class="page-header">
+    <div><p class="eyebrow">SYSTEM</p><h1>Status</h1><p class="page-description">Cloud connection to your robot.</p></div>
+    <span class="demo-badge">CLOUD MQTT</span>
+  </header>
+  <section class="glass-card api-connect-card">
+    <p class="eyebrow">CONNECT TO ADAFRUIT IO</p>
+    <h2>Cloud account</h2>
+    <p class="muted">Enter the Adafruit IO username and key used by the ESP32.</p>
+    <form id="cloudConnectForm">
+      <label class="field-label" for="aioUsername">Username</label>
+      <input id="aioUsername" type="text" autocomplete="username" required>
+      <label class="field-label" for="aioKey">Adafruit IO key</label>
+      <input id="aioKey" type="password" autocomplete="off" required>
+      <div class="api-connect-row"><button class="primary-button" type="submit">Save &amp; connect</button></div>
+      <p class="form-note" id="connectionFeedback" aria-live="polite">Create the robot-command and robot-status feeds in Adafruit IO first.</p>
+    </form>
+  </section>
+  <section class="status-grid">
+    <article class="glass-card device-status"><p class="eyebrow">ESP32 STATUS</p><div class="status-main"><i class="connection-dot" id="deviceDot"></i><strong id="espStatus">Not connected</strong></div><span class="muted" id="connectionType">Waiting for robot status</span></article>
+    <article class="glass-card"><p class="eyebrow">ROBOT MODE</p><strong class="status-value" id="robotMode">—</strong><span class="muted">Current ESP32 mode</span></article>
+    <article class="glass-card"><p class="eyebrow">EXPRESSION</p><strong class="status-value" id="robotExpression">—</strong><span class="muted">Current face</span></article>
+    <article class="glass-card"><p class="eyebrow">HAPPINESS</p><strong class="status-value" id="robotHappiness">—</strong><span class="muted">Reported by the robot</span></article>
+    <article class="glass-card"><p class="eyebrow">HUNGER</p><strong class="status-value" id="robotHunger">—</strong><span class="muted">Reported by the robot</span></article>
+    <article class="glass-card"><p class="eyebrow">SLEEP</p><strong class="status-value" id="robotSleep">—</strong><span class="muted">Automatic sleep state</span></article>
+    <article class="glass-card"><p class="eyebrow">WI-FI</p><strong class="status-value" id="wifiState">Unknown</strong><span class="muted" id="deviceIp">IP: —</span></article>
+    <article class="glass-card"><p class="eyebrow">TEMPERATURE</p><strong class="status-value" id="temperatureValue">—</strong><span class="muted" id="weatherDescription">Weather</span></article>
+    <article class="glass-card"><p class="eyebrow">FEELS LIKE</p><strong class="status-value" id="feelsLikeValue">—</strong><span class="muted">Per ESP32 weather data</span></article>
+    <article class="glass-card"><p class="eyebrow">HUMIDITY</p><strong class="status-value" id="humidityValue">—</strong><span class="muted">Current humidity</span></article>
+    <article class="glass-card"><p class="eyebrow">WIND</p><strong class="status-value" id="windValue">—</strong><span class="muted">Current wind speed</span></article>
+    <article class="glass-card"><p class="eyebrow">POMODORO</p><strong class="status-value" id="pomodoroState">—</strong><span class="muted" id="pomodoroTime">— remaining</span></article>
+    <article class="glass-card"><p class="eyebrow">REMINDERS</p><strong class="status-value" id="reminderCount">—</strong><span class="muted">Stored on the robot</span></article>
+    <article class="glass-card"><p class="eyebrow">TO-DO</p><strong class="status-value" id="todoCount">—</strong><span class="muted">Stored on the robot</span></article>
+  </section>
+  <section class="glass-card system-info">
+    <div class="section-heading"><div><p class="eyebrow">SYSTEM INFORMATION</p><h2>Software &amp; connection</h2></div></div>
+    <div class="info-list">
+      <div class="info-row"><span>Firmware mode value</span><strong id="modeNumber">—</strong></div>
+      <div class="info-row"><span>Frontend</span><strong>Robot Control UI · 1.0</strong></div>
+      <div class="info-row"><span>Connection</span><strong id="connectionMode">Not connected</strong></div>
+      <div class="info-row"><span>Last Update</span><strong id="lastUpdate">—</strong></div>
+    </div>
+  </section>
+</main>
+<script>
+const usernameInput = document.getElementById('aioUsername');
+const keyInput = document.getElementById('aioKey');
+usernameInput.value = localStorage.getItem('aioUsername') || '';
+keyInput.value = localStorage.getItem('aioKey') || '';
+
+async function getRobotStatus() { return window.robotControl.request('/api/status'); }
+const modeNames = ['Pet', 'Study', 'Work', 'Pomodoro', 'Clock', 'Weather', 'Message', 'Status', 'Night', 'Reminders', 'To-do'];
+const expressionNames = ['Normal', 'Happy', 'Love', 'Sad', 'Angry', 'Surprised', 'Sleepy'];
+function formatTimer(value) {
+  const seconds = Math.max(0, Math.floor(Number(value) || 0));
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+}
+async function refreshRobotStatus(eventState) {
+  const feedback = document.getElementById('connectionFeedback');
+  try {
+    const state = eventState || await window.robotControl.request('/api/status', undefined, { force: true });
+    const online = state._online !== false && state.wifi !== false;
+    const mode = Number(state.mode);
+    const expression = Number(state.expression);
+    document.getElementById('espStatus').textContent = online ? 'Online' : 'Offline';
+    document.getElementById('deviceDot').style.background = online ? '#35d07f' : '#ff3030';
+    document.getElementById('connectionType').textContent = online ? 'Live ESP32 status' : 'Last status is stale';
+    document.getElementById('robotMode').textContent = modeNames[mode] || 'Unknown';
+    document.getElementById('modeNumber').textContent = Number.isInteger(mode) ? `${mode} · ${modeNames[mode] || 'Unknown'}` : '—';
+    document.getElementById('robotExpression').textContent = expressionNames[expression] || 'Unknown';
+    document.getElementById('robotHappiness').textContent = Number.isFinite(Number(state.happiness)) ? `${state.happiness}%` : '—';
+    document.getElementById('robotHunger').textContent = Number.isFinite(Number(state.hunger)) ? `${state.hunger}%` : '—';
+    document.getElementById('robotSleep').textContent = state.sleeping ? 'Sleeping' : 'Awake';
+    document.getElementById('wifiState').textContent = state.wifi ? 'Connected' : 'Disconnected';
+    document.getElementById('deviceIp').textContent = `IP: ${state.ip || '—'}`;
+    document.getElementById('temperatureValue').textContent = Number.isFinite(Number(state.temperature)) ? `${Number(state.temperature).toFixed(1)}°C` : '—';
+    document.getElementById('feelsLikeValue').textContent = Number.isFinite(Number(state.feelsLike)) ? `${Number(state.feelsLike).toFixed(1)}°C` : '—';
+    document.getElementById('humidityValue').textContent = Number.isFinite(Number(state.humidity)) ? `${state.humidity}%` : '—';
+    document.getElementById('windValue').textContent = Number.isFinite(Number(state.wind)) ? `${state.wind} km/h` : '—';
+    document.getElementById('weatherDescription').textContent = state.weatherDescription || `Weather code ${state.weatherCode ?? '—'}`;
+    document.getElementById('pomodoroState').textContent = state.pomodoroRunning ? 'Running' : state.pomodoroPaused ? 'Paused' : 'Stopped';
+    document.getElementById('pomodoroTime').textContent = `${formatTimer(state.pomodoroRemaining)} remaining`;
+    document.getElementById('reminderCount').textContent = Number.isFinite(Number(state.reminderCount)) ? state.reminderCount : '—';
+    document.getElementById('todoCount').textContent = Number.isFinite(Number(state.todoCount)) ? state.todoCount : '—';
+    document.getElementById('connectionMode').textContent = state._online === undefined ? 'HTTP status' : 'Adafruit IO MQTT';
+    const updatedAt = state._sourceTimestamp ? new Date(state._sourceTimestamp) : new Date();
+    document.getElementById('lastUpdate').textContent = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(updatedAt);
+    feedback.textContent = online ? 'Robot state synchronized.' : 'Showing the last status received; robot may be offline.';
+    feedback.classList.remove('error-text');
+  } catch (error) {
+    document.getElementById('espStatus').textContent = 'Offline';
+    document.getElementById('deviceDot').style.background = '#ff3030';
+    document.getElementById('connectionType').textContent = 'No recent status from ESP32';
+    document.getElementById('connectionMode').textContent = 'Not connected';
+    feedback.textContent = error.message;
+    feedback.classList.add('error-text');
+  }
+}
+
+document.getElementById('cloudConnectForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  try {
+    window.robotControl.setCloudCredentials(usernameInput.value, keyInput.value);
+    document.getElementById('connectionFeedback').textContent = 'Connecting to Adafruit IO…';
+    await refreshRobotStatus();
+  } catch (error) {
+    document.getElementById('connectionFeedback').textContent = error.message;
+    document.getElementById('connectionFeedback').classList.add('error-text');
+  }
+});
+
+loadRobotMenu().then(() => {
+  window.robotControl.onStatus(state => refreshRobotStatus(state));
+  if (usernameInput.value && keyInput.value) refreshRobotStatus();
+  setInterval(() => { if (window.robotControl.isConfigured) refreshRobotStatus(); }, 30000);
+});
+async function loadRobotMenu() {
+  try {
+    const response = await fetch('menu.html');
+    if (!response.ok) throw Error();
+    const template = document.createElement('template');
+    template.innerHTML = await response.text();
+    const menuScript = template.content.querySelector('script');
+    if (menuScript) menuScript.remove();
+    document.getElementById('robotMenu').replaceChildren(template.content.cloneNode(true));
+    if (menuScript) {
+      const script = document.createElement('script');
+      script.textContent = menuScript.textContent;
+      document.body.append(script);
+      script.remove();
+    }
+  } catch {
+    document.getElementById('robotMenu').innerHTML = '<p class="menu-error">Navigation could not load. Run this page using VS Code Live Server.</p>';
+  }
+}
+</script>
+</body>
+</html>

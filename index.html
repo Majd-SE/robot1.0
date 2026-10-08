@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#070707"><title>Dashboard | ROBOT.</title><link rel="stylesheet" href="style.css"></head>
+<body><div id="robotMenu"></div><main class="page-shell"><header class="page-header"><div><p class="eyebrow">FOCUS SYSTEM</p><h1>Dashboard</h1><p class="page-description">Your robot control center.</p></div><div class="connection-pill is-offline" id="dashboardConnection" title="Set the ESP32 address on the Status page"><i class="connection-dot"></i><span>Connect in Status</span></div></header>
+<section class="dashboard-grid"><article class="glass-card quick-card"><div class="section-heading"><div><p class="eyebrow">CONTROL</p><h2>Quick Controls</h2><p class="muted">Choose an expression for your robot.</p></div></div><div class="emotion-grid" role="group" aria-label="Robot expressions">
+<button class="emotion-button is-selected" data-name="Normal" data-expression="0" type="button"><svg class="expression-icon" viewBox="0 0 48 48" aria-hidden="true"><path class="face-outline" d="M15 7.5h18a7.5 7.5 0 0 1 7.5 7.5v18a7.5 7.5 0 0 1-7.5 7.5H15A7.5 7.5 0 0 1 7.5 33V15A7.5 7.5 0 0 1 15 7.5Z"/><rect x="13" y="16" width="9" height="12" rx="4.5"/><rect x="26" y="16" width="9" height="12" rx="4.5"/><circle cx="17.5" cy="22" r="2.5"/><circle cx="30.5" cy="22" r="2.5"/><path d="M20 32h8"/></svg><span>Normal</span></button>
+<button class="emotion-button" data-name="Happy" data-expression="1" type="button"><svg class="expression-icon" viewBox="0 0 48 48" aria-hidden="true"><path class="face-outline" d="M15 7.5h18a7.5 7.5 0 0 1 7.5 7.5v18a7.5 7.5 0 0 1-7.5 7.5H15A7.5 7.5 0 0 1 7.5 33V15A7.5 7.5 0 0 1 15 7.5Z"/><path class="face-accent" d="m13 16 9-3m4 0 9 3"/><rect x="13" y="17" width="9" height="12" rx="4.5"/><rect x="26" y="17" width="9" height="12" rx="4.5"/><circle cx="17.5" cy="23" r="2.5"/><circle cx="30.5" cy="23" r="2.5"/><path class="face-accent" d="M15 30q9 14 18 0Z"/><path d="M17 31h14"/><path class="face-accent" d="M21 35h6"/></svg><span>Happy</span></button>
+<button class="emotion-button" data-name="Angry" data-expression="4" type="button"><svg class="expression-icon" viewBox="0 0 48 48" aria-hidden="true"><path class="face-outline" d="M15 7.5h18a7.5 7.5 0 0 1 7.5 7.5v18a7.5 7.5 0 0 1-7.5 7.5H15A7.5 7.5 0 0 1 7.5 33V15A7.5 7.5 0 0 1 15 7.5Z"/><path class="face-accent" d="m13 17 10-3m12 3-10-3"/><path d="M14 20 22 18v11h-8Zm20 0-8-2v11h8Z"/><circle cx="18" cy="24" r="2.5"/><circle cx="30" cy="24" r="2.5"/><path class="face-accent" d="m16 34 7-2 5 1 6-6"/></svg><span>Angry</span></button>
+<button class="emotion-button" data-name="Sad" data-expression="3" type="button"><svg class="expression-icon" viewBox="0 0 48 48" aria-hidden="true"><path class="face-outline" d="M15 7.5h18a7.5 7.5 0 0 1 7.5 7.5v18a7.5 7.5 0 0 1-7.5 7.5H15A7.5 7.5 0 0 1 7.5 33V15A7.5 7.5 0 0 1 15 7.5Z"/><path class="face-accent" d="m14 17 8 3m12-3-8 3"/><rect x="13" y="19" width="9" height="11" rx="4.5"/><rect x="26" y="19" width="9" height="11" rx="4.5"/><circle cx="17.5" cy="24" r="2.5"/><circle cx="30.5" cy="24" r="2.5"/><path class="face-accent" d="m17 34 5-3h4l5 3"/></svg><span>Sad</span></button>
+<button class="emotion-button" data-name="Sleepy" data-expression="6" type="button"><svg class="expression-icon" viewBox="0 0 48 48" aria-hidden="true"><path class="face-outline" d="M15 7.5h18a7.5 7.5 0 0 1 7.5 7.5v18a7.5 7.5 0 0 1-7.5 7.5H15A7.5 7.5 0 0 1 7.5 33V15A7.5 7.5 0 0 1 15 7.5Z"/><path d="M13 20h9v8h-9zm13 0h9v8h-9z"/><path class="face-accent" d="m13 25 4-3 5 1m4 2 5-3 4 3M15 17l7 1m4 0 7-1"/><path d="m18 33 4 2h4l4-2"/></svg><span>Sleepy</span></button>
+<button class="emotion-button" data-name="Surprised" data-expression="5" type="button"><svg class="expression-icon" viewBox="0 0 48 48" aria-hidden="true"><path class="face-outline" d="M15 7.5h18a7.5 7.5 0 0 1 7.5 7.5v18a7.5 7.5 0 0 1-7.5 7.5H15A7.5 7.5 0 0 1 7.5 33V15A7.5 7.5 0 0 1 15 7.5Z"/><path class="face-accent" d="m13 14 9-3m4 0 9 3"/><circle cx="17.5" cy="23" r="6"/><circle cx="30.5" cy="23" r="6"/><circle cx="17.5" cy="23" r="2.7"/><circle cx="30.5" cy="23" r="2.7"/><ellipse class="face-accent" cx="24" cy="33" rx="4" ry="6"/></svg><span>Surprised</span></button>
+<button class="emotion-button" data-name="Love" data-expression="2" type="button"><svg class="expression-icon expression-love" viewBox="0 0 48 48" aria-hidden="true"><path class="face-outline" d="M15 7.5h18a7.5 7.5 0 0 1 7.5 7.5v18a7.5 7.5 0 0 1-7.5 7.5H15A7.5 7.5 0 0 1 7.5 33V15A7.5 7.5 0 0 1 15 7.5Z"/><path class="face-accent" d="m14 16 8-2m4 0 8 2"/><rect x="13" y="17" width="9" height="12" rx="4.5"/><rect x="26" y="17" width="9" height="12" rx="4.5"/><path class="face-accent" d="M18 20c-4-4-7 1-1 6l3 2 3-3c3-4-1-7-5-5Zm12 0c-4-4-7 1-1 6l3 2 3-3c3-4-1-7-5-5Z"/><path d="M15 30q9 13 18 0"/></svg><span>Love</span></button></div></article>
+<article class="glass-card current-card"><p class="eyebrow">CURRENT EMOTION</p><div class="emotion-orb" aria-hidden="true"><span id="robotFace"></span></div><h2 id="currentEmotion">Normal</h2><p class="muted">Selected expression</p><div class="connection-row"><i class="connection-dot"></i><span>Robot connection</span><strong id="dashboardConnectionState">Checking</strong></div></article></section>
+<section class="robot-controls-grid"><article class="glass-card robot-control-card"><div class="section-heading"><div><p class="eyebrow">ROBOT MODE</p><h2>Choose a mode</h2></div></div><div class="mode-grid" id="robotModeControls" role="group" aria-label="Robot modes"><button class="mode-button" data-mode="pet" type="button">Pet</button><button class="mode-button" data-mode="study" type="button">Study</button><button class="mode-button" data-mode="work" type="button">Work</button><button class="mode-button" data-mode="pomodoro" type="button">Pomodoro</button><button class="mode-button" data-mode="clock" type="button">Clock</button><button class="mode-button" data-mode="weather" type="button">Weather</button><button class="mode-button" data-mode="message" type="button">Message</button><button class="mode-button" data-mode="status" type="button">Status</button><button class="mode-button" data-mode="reminders" type="button">Reminders</button><button class="mode-button" data-mode="todo" type="button">To-do</button></div><p class="form-note" id="modeFeedback" aria-live="polite">Robot mode follows the ESP32 status.</p></article><article class="glass-card robot-control-card"><div class="section-heading"><div><p class="eyebrow">PET CARE</p><h2>Care for your robot</h2></div></div><div class="pet-actions" role="group" aria-label="Pet controls"><button class="secondary-button" data-pet-action="pet" type="button">Pet</button><button class="secondary-button" data-pet-action="feed" type="button">Feed</button><button class="secondary-button" data-pet-action="wake" type="button">Wake</button><button class="secondary-button" data-pet-action="sleep" type="button">Sleep</button></div><div class="pet-stats"><span>Happiness <strong id="dashboardHappiness">—</strong></span><span>Hunger <strong id="dashboardHunger">—</strong></span><span>Sleep <strong id="dashboardSleep">—</strong></span></div><p class="form-note" id="petFeedback" aria-live="polite">Values come directly from the robot.</p></article></section>
+<section class="lower-grid"><article class="glass-card"><p class="eyebrow">LAST MESSAGE</p><h2 class="message-quote" id="lastMessage">“Ready when you are.”</h2><p class="muted">Latest message preview</p><a class="text-link" href="messages.html">Open messages <span aria-hidden="true">→</span></a></article><article class="glass-card status-preview"><p class="eyebrow">DEVICE</p><h2>ESP32-S3</h2><p class="muted">Frontend preview mode</p><a class="text-link" href="status.html">View system status <span aria-hidden="true">→</span></a></article></section></main>
+<script>
+const expressionNames = ['Normal', 'Happy', 'Love', 'Sad', 'Angry', 'Surprised', 'Sleepy'];
+const robotModeNames = ['Pet', 'Study', 'Work', 'Pomodoro', 'Clock', 'Weather', 'Message', 'Status', 'Night', 'Reminders', 'To-do'];
+const emotionButtons = document.querySelectorAll('.emotion-button');
+const robotFace = document.getElementById('robotFace');
+
+function syncDashboard(state) {
+  if (!state) return;
+  const online = state._online !== false && state.wifi !== false;
+  const connection = document.getElementById('dashboardConnection');
+  const connectionState = document.getElementById('dashboardConnectionState');
+  connection.querySelector('span').textContent = online ? 'Robot Connected' : 'Robot Offline';
+  connectionState.textContent = online ? 'Online' : 'Offline';
+  connection.title = online ? 'Live state from the ESP32.' : 'No recent state from the ESP32.';
+  connection.classList.toggle('is-offline', !online);
+
+  const expression = Number(state.expression);
+  const selected = document.querySelector(`.emotion-button[data-expression="${expression}"]`);
+  if (selected) {
+    emotionButtons.forEach(button => button.classList.toggle('is-selected', button === selected));
+    document.getElementById('currentEmotion').textContent = expressionNames[expression];
+    robotFace.replaceChildren(selected.querySelector('.expression-icon').cloneNode(true));
+  }
+
+  const modeName = robotModeNames[Number(state.mode)] || 'Unknown';
+  document.querySelectorAll('#robotModeControls [data-mode]').forEach(button => {
+    button.classList.toggle('active', modeName !== 'Night' && button.dataset.mode === modeName.toLowerCase());
+  });
+  document.getElementById('dashboardHappiness').textContent = Number.isFinite(Number(state.happiness)) ? `${state.happiness}%` : '—';
+  document.getElementById('dashboardHunger').textContent = Number.isFinite(Number(state.hunger)) ? `${state.hunger}%` : '—';
+  document.getElementById('dashboardSleep').textContent = state.sleeping ? 'Sleeping' : 'Awake';
+  document.querySelector('.status-preview .muted').textContent = `Current mode: ${modeName}`;
+}
+
+async function sendAndSync(path, payload, feedbackId) {
+  const feedback = feedbackId ? document.getElementById(feedbackId) : null;
+  try {
+    await window.robotControl.request(path, payload);
+    if (feedback) { feedback.textContent = 'Command sent. Syncing with robot…'; feedback.classList.remove('error-text'); }
+    await window.robotControl.request('/api/status', undefined, { force: true });
+  } catch (error) {
+    if (feedback) { feedback.textContent = error.message; feedback.classList.add('error-text'); }
+    const connection = document.getElementById('dashboardConnection');
+    connection.querySelector('span').textContent = 'Robot Offline';
+    connection.title = error.message;
+    connection.classList.add('is-offline');
+  }
+}
+
+emotionButtons.forEach(button => button.addEventListener('click', () => {
+  sendAndSync('/api/emotion', { expression: Number(button.dataset.expression) });
+}));
+document.querySelectorAll('#robotModeControls [data-mode]').forEach(button => button.addEventListener('click', () => {
+  sendAndSync('/api/mode', { mode: button.dataset.mode }, 'modeFeedback');
+}));
+document.querySelectorAll('[data-pet-action]').forEach(button => button.addEventListener('click', () => {
+  sendAndSync('/api/pet', { action: button.dataset.petAction }, 'petFeedback');
+}));
+async function loadRobotMenu() {
+  try {
+    const response = await fetch('menu.html'); if (!response.ok) throw new Error();
+    const template = document.createElement('template'); template.innerHTML = await response.text();
+    const menuScript = template.content.querySelector('script'); if (menuScript) menuScript.remove();
+    document.getElementById('robotMenu').replaceChildren(template.content.cloneNode(true));
+    if (menuScript) { const script = document.createElement('script'); script.textContent = menuScript.textContent; document.body.append(script); script.remove(); }
+  } catch { document.getElementById('robotMenu').innerHTML = '<p class="menu-error">Navigation could not load. Run this page using VS Code Live Server.</p>'; throw new Error('Menu failed to load'); }
+}
+loadRobotMenu().then(async () => {
+  if (!window.robotControl.isConfigured) return;
+  window.robotControl.onStatus(syncDashboard);
+  try { syncDashboard(await window.robotControl.request('/api/status', undefined, { force: true })); }
+  catch(error) { const connection=document.getElementById('dashboardConnection'); connection.querySelector('span').textContent='Robot Offline'; connection.title=error.message; connection.classList.add('is-offline'); }
+}).catch(() => {});
+</script></body></html>

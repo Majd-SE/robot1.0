@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#070707">
+  <title>To-do | ROBOT.</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="robotMenu"></div>
+<main class="page-shell">
+  <header class="page-header">
+    <div><p class="eyebrow">TASKS</p><h1>To-do List</h1><p class="page-description">Keep your next steps on the robot's OLED.</p></div>
+  </header>
+  <section class="glass-card reminder-form">
+    <div class="section-heading"><div><p class="eyebrow">ADD A TASK</p><h2>What's next?</h2></div></div>
+    <form id="todoForm">
+      <label class="field-label" for="todoTitle">Task</label>
+      <input id="todoTitle" name="title" type="text" maxlength="64" placeholder="Write a task for the robot..." required>
+      <button class="primary-button" type="submit">Add Task</button>
+    </form>
+    <p class="form-note" id="todoFeedback" aria-live="polite">Tasks sync to the robot and appear automatically every 15 minutes. The robot stores up to 8.</p>
+  </section>
+  <section class="history-section">
+    <div class="section-heading"><div><p class="eyebrow">YOUR TASKS</p><h2>To-do List</h2></div><span class="count-pill" id="todoCount">0</span></div>
+    <div class="reminder-list" id="todoList"></div>
+  </section>
+</main>
+<script>
+const storageKey = 'robot-control-todo';
+let tasks = [];
+try {
+  tasks = JSON.parse(localStorage.getItem(storageKey) || '[]');
+  if (!Array.isArray(tasks)) tasks = [];
+} catch { tasks = []; }
+const list = document.getElementById('todoList');
+const feedback = document.getElementById('todoFeedback');
+
+function saveTasks() {
+  localStorage.setItem(storageKey, JSON.stringify(tasks));
+}
+
+async function syncTask(payload) {
+  if (!window.robotControl || !window.robotControl.isConfigured) {
+    feedback.textContent = 'Saved on this phone. Connect the robot on the Status page to sync tasks.';
+    return;
+  }
+  try {
+    await window.robotControl.request('/api/todo', payload);
+    feedback.textContent = 'Task synced. The OLED will show the list every 15 minutes.';
+    feedback.classList.remove('error-text');
+  } catch (error) {
+    feedback.textContent = `Saved on this phone, but robot sync failed: ${error.message}`;
+    feedback.classList.add('error-text');
+  }
+}
+
+function renderTasks() {
+  list.replaceChildren();
+  const pending = tasks.filter(task => !task.complete);
+  const complete = tasks.filter(task => task.complete);
+  document.getElementById('todoCount').textContent = pending.length;
+  const shown = [...pending, ...complete];
+  if (!shown.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state glass-card';
+    empty.innerHTML = '<span class="empty-mark" aria-hidden="true">＋</span><strong>No tasks yet</strong><span>Add a task and it will sync to the robot.</span>';
+    list.append(empty);
+    return;
+  }
+
+  shown.forEach(task => {
+    const card = document.createElement('article');
+    card.className = `reminder-item glass-card${task.complete ? ' is-complete' : ''}`;
+    const check = document.createElement('button');
+    check.className = 'complete-button';
+    check.type = 'button';
+    check.setAttribute('aria-label', task.complete ? 'Mark incomplete' : 'Mark complete');
+    check.setAttribute('aria-pressed', String(task.complete));
+    check.textContent = task.complete ? '✓' : '';
+    check.addEventListener('click', () => {
+      task.complete = !task.complete;
+      saveTasks();
+      renderTasks();
+      syncTask(task.complete ? { operation: 'complete', id: task.id } : { operation: 'add', ...task });
+    });
+
+    const content = document.createElement('div');
+    const title = document.createElement('h3');
+    title.textContent = task.title;
+    const detail = document.createElement('p');
+    detail.className = 'reminder-datetime';
+    detail.textContent = task.complete ? 'Completed' : 'Shown on the robot';
+    content.append(title, detail);
+
+    const remove = document.createElement('button');
+    remove.className = 'delete-button';
+    remove.type = 'button';
+    remove.textContent = 'Delete';
+    remove.setAttribute('aria-label', `Delete ${task.title}`);
+    remove.addEventListener('click', () => {
+      tasks = tasks.filter(item => item.id !== task.id);
+      saveTasks();
+      renderTasks();
+      syncTask({ operation: 'delete', id: task.id });
+    });
+    card.append(check, content, remove);
+    list.append(card);
+  });
+}
+
+document.getElementById('todoForm').addEventListener('submit', event => {
+  event.preventDefault();
+  const input = document.getElementById('todoTitle');
+  const title = input.value.trim();
+  if (!title) return;
+  if (tasks.length >= 8) {
+    feedback.textContent = 'The robot stores up to 8 tasks. Delete a task before adding another.';
+    feedback.classList.add('error-text');
+    return;
+  }
+  const task = { id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title, complete: false };
+  tasks.push(task);
+  saveTasks();
+  event.currentTarget.reset();
+  renderTasks();
+  syncTask({ operation: 'add', ...task });
+});
+
+renderTasks();
+loadRobotMenu().then(async () => {
+  if (!window.robotControl.isConfigured) return;
+  for (const task of tasks.filter(item => !item.complete).slice(0, 8))
+    await syncTask({ operation: 'add', ...task });
+});
+
+async function loadRobotMenu() {
+  try {
+    const response = await fetch('menu.html');
+    if (!response.ok) throw new Error();
+    const template = document.createElement('template');
+    template.innerHTML = await response.text();
+    const menuScript = template.content.querySelector('script');
+    if (menuScript) menuScript.remove();
+    document.getElementById('robotMenu').replaceChildren(template.content.cloneNode(true));
+    if (menuScript) {
+      const script = document.createElement('script');
+      script.textContent = menuScript.textContent;
+      document.body.append(script);
+      script.remove();
+    }
+  } catch {
+    document.getElementById('robotMenu').innerHTML = '<p class="menu-error">Navigation could not load. Run this page using VS Code Live Server.</p>';
+  }
+}
+</script>
+</body>
+</html>

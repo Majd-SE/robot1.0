@@ -1,0 +1,124 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#070707"><title>Pomodoro | ROBOT.</title><link rel="stylesheet" href="style.css"></head><body><div id="robotMenu"></div><main class="page-shell"><header class="page-header"><div><p class="eyebrow">FOCUS SYSTEM</p><h1>Pomodoro</h1><p class="page-description">A quiet space to focus, one session at a time.</p></div></header>
+<div class="pomodoro-layout"><section class="glass-card timer-card"><div class="mode-switch" role="group" aria-label="Timer mode"><button class="mode-button active" data-mode="focus">Focus</button><button class="mode-button" data-mode="short">Short Break</button><button class="mode-button" data-mode="long">Long Break</button></div><div class="timer-ring"><div><p class="eyebrow" id="timerMode">Focus Session</p><div class="timer-value" id="timerDisplay" aria-live="off">25:00</div></div></div><p class="timer-status" id="timerStatus" aria-live="polite">Ready when you are</p><div class="timer-controls"><button class="primary-button" id="startButton">Start</button><button class="secondary-button" id="resetButton">Reset</button></div><div class="session-progress"><span>Session <strong id="sessionNumber">1</strong> of 4</span><div class="session-dots" aria-label="Focus session progress"><i class="active"></i><i></i><i></i><i></i></div></div></section>
+<aside class="pomodoro-side"><section class="glass-card stats-card"><p class="eyebrow">FOCUS STATS</p><div class="stat-row"><span>Focus Time</span><strong id="focusTime">0 min</strong></div><div class="stat-row"><span>Sessions</span><strong id="completedSessions">0</strong></div><div class="stat-row"><span>Current Mode</span><strong id="currentMode">Focus</strong></div><div class="stat-row"><span>Status</span><strong id="statusValue">Ready</strong></div></section><section class="glass-card settings-card"><p class="eyebrow">TIMER SETTINGS</p><label class="field-label" for="focusInput">Focus <span>(minutes)</span></label><input id="focusInput" type="number" min="1" max="120" value="25"><label class="field-label" for="shortInput">Short Break <span>(minutes)</span></label><input id="shortInput" type="number" min="1" max="60" value="5"><label class="field-label" for="longInput">Long Break <span>(minutes)</span></label><input id="longInput" type="number" min="1" max="120" value="15"><button class="secondary-button full-button" id="applyButton">Apply Changes</button><p class="form-note" id="settingsNote" aria-live="polite">Applying settings resets the current timer.</p></section></aside></div></main>
+<script>
+const durations = { focus: 25, short: 5, long: 15 };
+let mode = localStorage.getItem('robotPomodoroMode') || 'focus';
+if (!durations[mode]) mode = 'focus';
+let remaining = durations[mode] * 60;
+let running = false, paused = false, completed = 0, elapsedFocus = 0;
+let syncedAt = Date.now(), pendingCommandAt = 0, pollTimer = null, renderTimer = null;
+const $ = id => document.getElementById(id);
+const display = $('timerDisplay'), startButton = $('startButton');
+
+function visibleRemaining() {
+  if (!running) return Math.max(0, remaining);
+  return Math.max(0, remaining - Math.floor((Date.now() - syncedAt) / 1000));
+}
+function render() {
+  const shown = visibleRemaining();
+  display.textContent = `${String(Math.floor(shown / 60)).padStart(2,'0')}:${String(shown % 60).padStart(2,'0')}`;
+  $('timerMode').textContent = mode === 'focus' ? 'Focus Session' : mode === 'short' ? 'Short Break' : 'Long Break';
+  $('currentMode').textContent = mode === 'focus' ? 'Focus' : mode === 'short' ? 'Short Break' : 'Long Break';
+  $('sessionNumber').textContent = completed % 4 + 1;
+  document.querySelectorAll('.session-dots i').forEach((dot, i) => dot.classList.toggle('active', i <= completed % 4));
+  $('focusTime').textContent = `${Math.floor(elapsedFocus / 60)} min`;
+  $('completedSessions').textContent = completed;
+  const isComplete = !running && !paused && shown === 0;
+  $('statusValue').textContent = running ? 'Running' : paused ? 'Paused' : isComplete ? 'Complete' : 'Ready';
+  $('timerStatus').textContent = running ? 'Session in progress' : paused ? 'Session paused' : isComplete ? 'Session complete on robot' : 'Ready when you are';
+  startButton.textContent = running ? 'Pause' : paused ? 'Resume' : 'Start';
+  document.title = `${display.textContent} · Pomodoro | ROBOT.`;
+}
+function applyRobotStatus(state) {
+  if (!state || state.pomodoroRemaining === undefined) return;
+  const sourceAt = Number(state._sourceTimestamp) || Date.now();
+  if (pendingCommandAt && sourceAt < pendingCommandAt - 1200) return;
+  const nextRunning = Boolean(state.pomodoroRunning);
+  const nextPaused = Boolean(state.pomodoroPaused);
+  const robotSeconds = Math.max(0, Number(state.pomodoroRemaining) || 0);
+  remaining = Math.max(0, robotSeconds - (nextRunning ? Math.floor((Date.now() - sourceAt) / 1000) : 0));
+  running = nextRunning;
+  paused = nextPaused;
+  syncedAt = Date.now();
+  if (!running && !paused && remaining === 0 && mode === 'focus') completed = Math.max(completed, 1);
+  render();
+  scheduleStatusPoll();
+}
+async function refreshRobotStatus(force = true) {
+  if (!window.robotControl) return;
+  try {
+    const state = await window.robotControl.request('/api/status', undefined, { force });
+    applyRobotStatus(state);
+  } catch (error) {
+    $('settingsNote').textContent = error.message;
+    $('settingsNote').classList.add('error-text');
+  }
+}
+async function sendTimerCommand(command, seconds) {
+  if (!window.robotControl) throw new Error('Robot connection is still loading.');
+  pendingCommandAt = Date.now();
+  const commandSentAt = pendingCommandAt;
+  const payload = { command };
+  if (command === 'start' || command === 'resume') payload.remainingSeconds = Math.max(1, Math.floor(seconds));
+  await window.robotControl.request('/api/timer', payload);
+  $('settingsNote').textContent = 'Command sent. Syncing with the ESP32…';
+  $('settingsNote').classList.remove('error-text');
+  setTimeout(() => {
+    if (pendingCommandAt === commandSentAt) {
+      pendingCommandAt = 0;
+      refreshRobotStatus(true);
+    }
+  }, 10000);
+  setTimeout(() => refreshRobotStatus(true), 700);
+}
+function scheduleStatusPoll() {
+  clearTimeout(pollTimer);
+  pollTimer = setTimeout(async () => {
+    await refreshRobotStatus(true);
+    scheduleStatusPoll();
+  }, running ? 2000 : 10000);
+}
+function selectMode(next) {
+  mode = next;
+  localStorage.setItem('robotPomodoroMode', mode);
+  if (!running) { remaining = durations[mode] * 60; paused = false; }
+  document.querySelectorAll('.mode-button').forEach(button => button.classList.toggle('active', button.dataset.mode === mode));
+  render();
+}
+startButton.addEventListener('click', async () => {
+  if (running) {
+    try { await sendTimerCommand('pause'); } catch (error) { $('settingsNote').textContent = error.message; $('settingsNote').classList.add('error-text'); }
+    return;
+  }
+  const command = paused ? 'resume' : 'start';
+  const secondsToStart = Math.max(1, Math.floor(visibleRemaining() || durations[mode] * 60));
+  try {
+    await sendTimerCommand(command, secondsToStart);
+    remaining = secondsToStart; running = true; paused = false; syncedAt = Date.now(); render();
+  } catch (error) { $('settingsNote').textContent = error.message; $('settingsNote').classList.add('error-text'); }
+});
+$('resetButton').addEventListener('click', async () => {
+  mode = 'focus'; localStorage.setItem('robotPomodoroMode', mode);
+  document.querySelectorAll('.mode-button').forEach(button => button.classList.toggle('active', button.dataset.mode === mode));
+  try { await sendTimerCommand('reset'); paused = false; running = false; remaining = durations.focus * 60; render(); }
+  catch (error) { $('settingsNote').textContent = error.message; $('settingsNote').classList.add('error-text'); }
+});
+document.querySelectorAll('.mode-button').forEach(button => button.addEventListener('click', () => selectMode(button.dataset.mode)));
+$('applyButton').addEventListener('click', () => {
+  const fields = [['focusInput','focus',120],['shortInput','short',60],['longInput','long',120]];
+  for (const [id,label,max] of fields) { const input = $(id), value = Number(input.value); if (!Number.isInteger(value) || value < 1 || value > max) { input.setCustomValidity(`Enter a whole number from 1 to ${max}.`); input.reportValidity(); input.addEventListener('input', () => input.setCustomValidity(''), { once: true }); return; } }
+  fields.forEach(([id,label]) => durations[label] = Number($(id).value));
+  if (!running) { remaining = durations[mode] * 60; paused = false; }
+  $('settingsNote').textContent = 'Settings saved for the next session.'; $('settingsNote').classList.remove('error-text'); render();
+});
+render();
+renderTimer = setInterval(render, 250);
+scheduleStatusPoll();
+document.querySelectorAll('.mode-button').forEach(button => button.classList.toggle('active', button.dataset.mode === mode));
+loadRobotMenu().then(() => {
+  window.robotControl.onStatus(applyRobotStatus);
+  refreshRobotStatus(true);
+}).catch(() => {});
+async function loadRobotMenu() { try { const response=await fetch('menu.html'); if(!response.ok)throw Error(); const template=document.createElement('template'); template.innerHTML=await response.text(); const menuScript=template.content.querySelector('script'); if(menuScript)menuScript.remove(); $('robotMenu').replaceChildren(template.content.cloneNode(true)); if(menuScript){const script=document.createElement('script');script.textContent=menuScript.textContent;document.body.append(script);script.remove();} } catch { $('robotMenu').innerHTML='<p class="menu-error">Navigation could not load. Run this page using VS Code Live Server.</p>'; } }
+</script></body></html>
